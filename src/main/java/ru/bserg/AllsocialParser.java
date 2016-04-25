@@ -2,6 +2,8 @@ package ru.bserg;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -13,13 +15,9 @@ import ru.bserg.dao.ResponseObject;
 
 import java.io.InputStream;
 import java.net.URI;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -28,21 +26,59 @@ import java.util.stream.Collectors;
 public class AllsocialParser {
 
     // 45 17 87 107
-    private static String CATEGORY = "783";
+    private static List<String> CATEGORY = Lists.newArrayList("17", "45", "87", "107");
 
     private static String PATH = "D:\\tmp\\";
 
-    private static List<Entity> entityList = new ArrayList<Entity>();
+    private static Map<Integer, String> linkPrefixs = Maps.newHashMap();
+    static {
+        linkPrefixs.put(1, "http://vk.com/public");
+        linkPrefixs.put(2, "http://vk.com/club");
+    }
 
     public static void main(String[] args) throws Exception {
 
-        if (args.length != 1) {
+        if (args.length == 0) {
             System.out.println("Enter category number!");
         } else {
-            CATEGORY = args[0];
+            CATEGORY = Arrays.asList(args);
         }
 
-        System.out.println("START Parse cat: " + CATEGORY);
+        List<String> result = new ArrayList<>();
+        result.add("Категория; VK link; Название; Кол-во; Посетителей; CPP; Closed; Reach");
+
+        for (String cat : CATEGORY) {
+            List<Entity> list = parse(cat);
+
+            List<String> lines = list.stream().map(e -> {
+                StringJoiner sj = new StringJoiner(";");
+                sj
+                        .add(cat)
+                        .add(linkPrefixs.get(e.getType_id())+e.getVk_id().toString())
+                        .add(e.getCaption())
+                        .add(e.getQuantity().toString())
+                        .add(e.getVisitors().toString())
+                        .add(e.getCpp().toString())
+                        .add(e.getIs_closed().toString())
+                        .add(e.getReach().toString());
+                return sj.toString();
+            }).collect(Collectors.toList());
+
+            result.addAll(lines);
+        }
+
+        System.out.println("WELL DONE: " + result.size() + " lines");
+
+
+        Files.write(Paths.get(PATH + "\\Parse_all.csv"), result);
+
+
+    }
+
+    private static List<Entity> parse(String category) throws Exception {
+        List<Entity> entityList = new ArrayList<Entity>();
+
+        System.out.println("START Parse cat: " + category);
 
         /*
         http://allsocial.ru/entity
@@ -81,8 +117,8 @@ public class AllsocialParser {
                     .addParameter("period", "day")
                     .addParameter("platform", "1")
                     .addParameter("range", "0:10000000")
-                    .addParameter("type_id", "1")
-                    .addParameter("category_id", CATEGORY)
+                    .addParameter("type_id", "-1")
+                    .addParameter("category_id", category)
                     .addParameter("offset", String.valueOf(offset))
                     .build();
 
@@ -98,7 +134,7 @@ public class AllsocialParser {
                 ResponseObject object = objectMapper.readValue(inputStream, ResponseObject.class);
                 all = object.getResponse().getTotal_count();
 
-                System.out.println("CAT: " + CATEGORY + " ALL: " + all + " OFFSET: " + offset + " | " + object);
+                System.out.println("CAT: " + category + " ALL: " + all + " OFFSET: " + offset + " | " + object);
 
                 offset += object.getResponse().getEntity().size();
                 entityList.addAll(object.getResponse().getEntity());
@@ -109,27 +145,7 @@ public class AllsocialParser {
                 end = true;
             }
         }
-
-
-        List<String> lines = entityList.stream().map(e -> {
-            StringJoiner sj = new StringJoiner(";");
-            sj
-                    .add(e.getVk_id().toString())
-                    .add(e.getCaption())
-                    .add(e.getQuantity().toString())
-                    .add(e.getVisitors().toString())
-                    .add(e.getCpp().toString())
-                    .add(e.getIs_closed().toString())
-                    .add(e.getReach().toString());
-            return sj.toString();
-        }).collect(Collectors.toList());
-
-        System.out.println("WELL DONE: " + lines.size() + " lines");
-        lines.add(0, "VK ID; Название; Кол-во; Посетителей; CPP; Closed; Reach");
-
-        Files.write(Paths.get(PATH + "\\Parse_" + CATEGORY + ".csv"), lines);
-
-
+        return entityList;
     }
 
 }

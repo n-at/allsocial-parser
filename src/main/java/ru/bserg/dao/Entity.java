@@ -48,6 +48,16 @@ public class Entity {
 
     Integer is_closed;
 
+    public Integer getType_id() {
+        return type_id;
+    }
+
+    public void setType_id(Integer type_id) {
+        this.type_id = type_id;
+    }
+
+    Integer type_id;
+
     public Integer getId() {
         return id;
     }

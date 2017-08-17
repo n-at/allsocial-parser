@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.io.CharStreams;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -14,6 +15,7 @@ import ru.bserg.dao.Entity;
 import ru.bserg.dao.ResponseObject;
 
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -26,9 +28,9 @@ import java.util.stream.Collectors;
 public class AllsocialParser {
 
     // 45 17 87 107
-    private static List<String> CATEGORY = Lists.newArrayList("17", "45", "87", "107");
+    private static List<String> CATEGORY = Lists.newArrayList("17");
 
-    private static String PATH = "D:\\tmp\\";
+    private static String PATH = ".";
 
     private static Map<Integer, String> linkPrefixs = Maps.newHashMap();
     static {
@@ -69,10 +71,7 @@ public class AllsocialParser {
 
         System.out.println("WELL DONE: " + result.size() + " lines");
 
-
-        Files.write(Paths.get(PATH + "\\Parse_all.csv"), result);
-
-
+        Files.write(Paths.get(PATH, "Parse_all.csv"), result);
     }
 
     private static List<Entity> parse(String category) throws Exception {
@@ -100,7 +99,7 @@ public class AllsocialParser {
         ;
 
         CloseableHttpClient client = HttpClientBuilder.create().build();
-        HttpGet httpGet = new HttpGet("http://allsocial.ru/entity");
+        HttpGet httpGet = new HttpGet();
 
         boolean end = false;
         int offset = 0;
@@ -108,7 +107,7 @@ public class AllsocialParser {
 
         while (!end) {
 
-            URI uri = new URIBuilder(httpGet.getURI())
+            URI uri = new URIBuilder("http://allsocial.ru/entity")
                     .addParameter("direction", "1")
                     .addParameter("is_closed", "-1")
                     .addParameter("is_verified", "-1")
@@ -129,16 +128,22 @@ public class AllsocialParser {
 
             if (entity != null) {
                 InputStream inputStream = entity.getContent();
-                //String sResponse = convertStreamToString(inputStream);
-                //System.out.println(sResponse);
-                ResponseObject object = objectMapper.readValue(inputStream, ResponseObject.class);
-                all = object.getResponse().getTotal_count();
 
-                System.out.println("CAT: " + category + " ALL: " + all + " OFFSET: " + offset + " | " + object);
+                String sResponse = CharStreams.toString(new InputStreamReader(inputStream));
 
-                offset += object.getResponse().getEntity().size();
-                entityList.addAll(object.getResponse().getEntity());
+                try {
+                    ResponseObject object = objectMapper.readValue(sResponse, ResponseObject.class);
+                    all = object.getResponse().getTotal_count();
 
+                    System.out.println("CAT: " + category + " ALL: " + all + " OFFSET: " + offset + " | " + object);
+
+                    offset += object.getResponse().getEntity().size();
+                    entityList.addAll(object.getResponse().getEntity());
+                } catch (Exception e) {
+                    System.out.println(sResponse);
+                    e.printStackTrace();
+                    System.exit(-1);
+                }
             }
 
             if (offset >= all) {
